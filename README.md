@@ -1,4 +1,4 @@
-# Digital Curator — Reimbursement Management System
+# ReimburseIQ — Reimbursement Management System
 
 Enterprise-grade expense reimbursement platform with AI anomaly detection, multi-step approval workflows, OCR receipt scanning, and real-time notifications.
 
