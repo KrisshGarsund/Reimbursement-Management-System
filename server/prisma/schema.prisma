@@ -1,0 +1,126 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Company {
+  id        String   @id @default(uuid())
+  name      String
+  country   String
+  currency  String
+  createdAt DateTime @default(now())
+
+  users         User[]
+  expenses      Expense[]
+  approvalRules ApprovalRule[]
+}
+
+model User {
+  id                String   @id @default(uuid())
+  companyId         String
+  name              String
+  email             String   @unique
+  passwordHash      String
+  role              String   @default("EMPLOYEE")
+  managerId         String?
+  isManagerApprover Boolean  @default(false)
+  createdAt         DateTime @default(now())
+
+  company       Company @relation(fields: [companyId], references: [id])
+  manager       User?   @relation("ManagerRelation", fields: [managerId], references: [id])
+  subordinates  User[]  @relation("ManagerRelation")
+
+  submittedExpenses Expense[]      @relation("SubmittedExpenses")
+  approvalLogs      ApprovalLog[]
+  auditLogs         AuditLog[]     @relation("AuditActor")
+  notifications     Notification[]
+
+  assignedRules ApprovalRule[] @relation("RuleApprover")
+  specificRules ApprovalRule[] @relation("SpecificApprover")
+}
+
+model Expense {
+  id                  String        @id @default(uuid())
+  companyId           String
+  submittedById       String
+  amount              Float
+  currency            String
+  convertedAmount     Float?
+  companyCurrency     String
+  category            String
+  description         String
+  date                DateTime
+  receiptUrl          String?
+  status              String        @default("PENDING")
+  currentApproverStep Int           @default(0)
+  aiFlag              Boolean       @default(false)
+  aiSeverity          String?
+  aiFlags             String?
+  aiReasoning         String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  company     Company        @relation(fields: [companyId], references: [id])
+  submittedBy User           @relation("SubmittedExpenses", fields: [submittedById], references: [id])
+  approvalLogs ApprovalLog[]
+  auditLogs    AuditLog[]
+  notifications Notification[]
+}
+
+model ApprovalRule {
+  id                  String   @id @default(uuid())
+  companyId           String
+  stepOrder           Int
+  approverId          String
+  ruleType            String   @default("SEQUENTIAL")
+  percentageThreshold Float?
+  specificApproverId  String?
+  createdAt           DateTime @default(now())
+
+  company          Company @relation(fields: [companyId], references: [id])
+  approver         User    @relation("RuleApprover", fields: [approverId], references: [id])
+  specificApprover User?   @relation("SpecificApprover", fields: [specificApproverId], references: [id])
+}
+
+model ApprovalLog {
+  id         String         @id @default(uuid())
+  expenseId  String
+  approverId String
+  action     String
+  comment    String?
+  stepOrder  Int
+  createdAt  DateTime       @default(now())
+
+  expense  Expense @relation(fields: [expenseId], references: [id])
+  approver User    @relation(fields: [approverId], references: [id])
+}
+
+model AuditLog {
+  id        String      @id @default(uuid())
+  expenseId String
+  actorId   String
+  actorRole String
+  action    String
+  comment   String?
+  metadata  String?
+  createdAt DateTime    @default(now())
+
+  expense Expense @relation(fields: [expenseId], references: [id])
+  actor   User    @relation("AuditActor", fields: [actorId], references: [id])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  expenseId String?
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id])
+  expense Expense? @relation(fields: [expenseId], references: [id])
+}
