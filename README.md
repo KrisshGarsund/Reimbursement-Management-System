@@ -2,6 +2,49 @@
 
 Enterprise-grade expense reimbursement platform with AI anomaly detection, multi-step approval workflows, OCR receipt scanning, and real-time notifications.
 
+## The Problem
+
+Companies lose thousands of hours every year to manual expense reimbursement 
+processes. Employees submit claims with no visibility into where they stand. 
+Managers get buried in approval queues with zero context. Finance teams 
+struggle with fragmented, error-prone records and no audit trail.
+
+There is no simple way to define flexible approval flows, catch fraudulent or 
+duplicate claims automatically, or maintain a transparent history of every 
+decision made.
+
+**ReimburseIQ solves all of this in one platform.**
+
+---
+
+## What It Does
+
+ReimburseIQ is a full-stack web application that digitizes and intelligences 
+the entire expense reimbursement lifecycle — from submission to final approval 
+— with AI at its core.
+
+### For Employees
+- Submit expense claims in any currency with live conversion to the company currency
+- Upload a receipt photo and let AI auto-fill the entire form via OCR
+- Track the real-time status of every claim submitted
+- Get instant notifications when a claim is approved or rejected
+
+### For Managers
+- See a queue of expenses waiting for approval with full context
+- View AI risk badges that flag suspicious claims before opening them
+- Approve or reject with comments in two clicks
+- Access full team expense history
+
+### For Admins
+- Auto-create company profile on signup with country-based currency detection
+- Create and manage employees, managers, and roles
+- Configure flexible multi-step approval chains with four rule types
+- View and filter all company expenses
+- Export expense reports as CSV
+- Override any approval with full audit logging
+
+---
+
 ## Tech Stack
 
 - **Frontend:** React 19 + Vite + Tailwind CSS v4
