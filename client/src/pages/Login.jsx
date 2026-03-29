@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
+import { validators } from '../utils/validation.js';
 import { Mail, Lock, ArrowRight } from 'lucide-react';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const toast = useToast();
@@ -14,6 +16,19 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validate inputs
+    const validationErrors = {};
+    const emailError = validators.email(email);
+    if (emailError) validationErrors.email = emailError;
+    if (!password) validationErrors.password = 'Password is required';
+    
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+    
+    setErrors({});
     setLoading(true);
     try {
       const result = await login(email, password);
@@ -55,12 +70,13 @@ export default function Login() {
                 <input
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3 bg-white/50 border border-gray-200 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm outline-none"
+                  onChange={(e) => { setEmail(e.target.value); setErrors({ ...errors, email: null }); }}
+                  className={`w-full pl-11 pr-4 py-3 bg-white/50 border ${errors.email ? 'border-red-300 focus:ring-red-500/20 focus:border-red-500' : 'border-gray-200 focus:ring-indigo-500/10 focus:border-indigo-500'} rounded-xl focus:ring-4 transition-all text-sm outline-none`}
                   placeholder="you@company.com"
                   required
                 />
               </div>
+              {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email}</p>}
             </div>
 
             <div>
@@ -70,12 +86,13 @@ export default function Login() {
                 <input
                   type="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3 bg-white/50 border border-gray-200 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm outline-none"
+                  onChange={(e) => { setPassword(e.target.value); setErrors({ ...errors, password: null }); }}
+                  className={`w-full pl-11 pr-4 py-3 bg-white/50 border ${errors.password ? 'border-red-300 focus:ring-red-500/20 focus:border-red-500' : 'border-gray-200 focus:ring-indigo-500/10 focus:border-indigo-500'} rounded-xl focus:ring-4 transition-all text-sm outline-none`}
                   placeholder="••••••••"
                   required
                 />
               </div>
+              {errors.password && <p className="text-xs text-red-500 mt-1">{errors.password}</p>}
             </div>
 
             <button

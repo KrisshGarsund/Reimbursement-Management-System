@@ -3,13 +3,9 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import api from '../api/axios.js';
-import StatusBadge from '../components/ui/StatusBadge.jsx';
-import AiBadge from '../components/ui/AiBadge.jsx';
-import EmptyState from '../components/ui/EmptyState.jsx';
 import Modal from '../components/ui/Modal.jsx';
-import { CardSkeleton } from '../components/ui/Skeleton.jsx';
-import { formatCurrency, formatDate, getCategoryIcon, getInitials } from '../utils/formatters.js';
-import { CheckCircle, XCircle, Clock } from 'lucide-react';
+import { formatCurrency } from '../utils/formatters.js';
+import { Check, X, AlertTriangle } from 'lucide-react';
 
 export default function ManagerDashboard() {
   const { user } = useAuth();
@@ -29,10 +25,14 @@ export default function ManagerDashboard() {
     } catch {} finally { setLoading(false); }
   }
 
-  const pendingExpenses = expenses.filter((e) => e.status === 'PENDING' || e.status === 'IN_REVIEW');
+  // Exclude own expenses from pending queue — manager cannot self-approve
+  const pendingExpenses = expenses.filter(
+    (e) => (e.status === 'PENDING' || e.status === 'IN_REVIEW') && e.submittedBy?.id !== user?.id
+  );
   const completedExpenses = expenses.filter((e) => e.status === 'APPROVED' || e.status === 'REJECTED');
 
-  async function handleAction() {
+  async function handleAction(e) {
+    if (e) e.preventDefault();
     setProcessing(true);
     try {
       const { type, expense } = actionModal;
@@ -52,109 +52,146 @@ export default function ManagerDashboard() {
     } finally { setProcessing(false); }
   }
 
+  const CategoryBadge = ({ category }) => (
+    <span className="bg-brand-bg text-[#4F54A4] px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider">{category || 'GENERAL'}</span>
+  );
+
+  const StatusBadge = ({ status }) => {
+    switch(status) {
+      case 'APPROVED': return <span className="bg-[#D1FAE5] text-[#059669] px-3 py-1 rounded-full text-[11px] font-bold">APPROVED</span>;
+      case 'PENDING': case 'IN_REVIEW': return <span className="bg-[#E0E7FF] text-[#4F46E5] px-3 py-1 rounded-full text-[11px] font-bold">PENDING</span>;
+      case 'REJECTED': return <span className="bg-[#FEE2E2] text-[#DC2626] px-3 py-1 rounded-full text-[11px] font-bold">REJECTED</span>;
+      default: return <span className="bg-[#F1F5F9] text-[#64748B] px-3 py-1 rounded-full text-[11px] font-bold">DRAFT</span>;
+    }
+  };
+
+  const AiBadge = ({ flag, severity }) => {
+    if (!flag) return null;
+    const isHigh = severity === 'HIGH';
+    return (
+      <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider w-max ${isHigh ? 'bg-[#FEE2E2] text-[#DC2626]' : 'bg-[#FEF3C7] text-[#D97706]'}`}>
+        <AlertTriangle className="w-3 h-3" />
+        {isHigh ? 'HIGH RISK' : 'FLAGGED'}
+      </div>
+    );
+  };
+
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Approval Queue</h1>
-        <p className="text-gray-500 text-sm mt-1">Review and approve team expense submissions</p>
+    <div className="relative min-h-full">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+        <div>
+          <h1 className="text-[28px] font-bold text-brand-dark tracking-tight mb-1">Approvals Queue</h1>
+          <p className="text-[#64748B] text-[15px]">Review and manage team reimbursement requests.</p>
+        </div>
+        {/* Batch Approve removed - feature not yet implemented */}
       </div>
 
-      {/* Pending Section */}
-      <div className="mb-10">
-        <div className="flex items-center gap-2 mb-4">
-          <Clock className="w-5 h-5 text-amber-500" />
-          <h2 className="text-lg font-semibold text-gray-900">Pending Approval ({pendingExpenses.length})</h2>
+      {/* Pending Table Area */}
+      <div className="bg-white rounded-[20px] p-8 shadow-[0_8px_30px_rgba(0,0,0,0.02)] mb-8">
+        <div className="flex items-center justify-between mb-8">
+          <h2 className="text-[19px] font-bold text-brand-dark tracking-tight">Pending Requests ({pendingExpenses.length})</h2>
+          {/* Filter and Sort removed - features not yet implemented */}
         </div>
 
-        {loading ? (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 3 }).map((_, i) => <CardSkeleton key={i} />)}
-          </div>
-        ) : pendingExpenses.length === 0 ? (
-          <EmptyState title="All caught up!" description="No expenses pending your approval." />
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {pendingExpenses.map((exp) => (
-              <div key={exp.id} className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-all">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-xs font-medium text-gray-600">
-                      {getInitials(exp.submittedBy?.name)}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{exp.submittedBy?.name}</p>
-                      <p className="text-xs text-gray-400">{formatDate(exp.date)}</p>
-                    </div>
-                  </div>
-                  <StatusBadge status={exp.status} />
-                </div>
-
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-lg">{getCategoryIcon(exp.category)}</span>
-                  <span className="text-sm text-gray-600">{exp.category}</span>
-                </div>
-
-                <p className="text-xl font-bold text-gray-900 mb-1">
-                  {formatCurrency(exp.convertedAmount || exp.amount, exp.companyCurrency || exp.currency)}
-                </p>
-                <p className="text-sm text-gray-500 line-clamp-2 mb-3">{exp.description}</p>
-
-                {exp.aiFlag && (
-                  <div className="mb-3">
-                    <AiBadge severity={exp.aiSeverity} reasoning={exp.aiReasoning} />
-                  </div>
-                )}
-
-                <div className="flex gap-2 pt-3 border-t border-gray-50">
-                  <button
-                    onClick={() => setActionModal({ isOpen: true, type: 'approve', expense: exp })}
-                    className="flex-1 bg-emerald-50 text-emerald-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-emerald-100 transition-colors flex items-center justify-center gap-1.5"
-                  >
-                    <CheckCircle className="w-4 h-4" /> Approve
-                  </button>
-                  <button
-                    onClick={() => setActionModal({ isOpen: true, type: 'reject', expense: exp })}
-                    className="flex-1 bg-red-50 text-red-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors flex items-center justify-center gap-1.5"
-                  >
-                    <XCircle className="w-4 h-4" /> Reject
-                  </button>
-                  <Link to={`/expenses/${exp.id}`} className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors">
-                    View
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-[#F1F5F9]">
+                <th className="pb-4 text-[11px] font-bold text-brand-label uppercase tracking-wider">Employee</th>
+                <th className="pb-4 text-[11px] font-bold text-brand-label uppercase tracking-wider">Description</th>
+                <th className="pb-4 text-[11px] font-bold text-brand-label uppercase tracking-wider">Date</th>
+                <th className="pb-4 text-[11px] font-bold text-brand-label uppercase tracking-wider">Category</th>
+                <th className="pb-4 text-[11px] font-bold text-brand-label uppercase tracking-wider">Policy Risk</th>
+                <th className="pb-4 text-[11px] font-bold text-brand-label uppercase tracking-wider">Amount</th>
+                <th className="pb-4 text-[11px] font-bold text-brand-label uppercase tracking-wider text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan="7" className="py-8 text-center text-[#8695AD]">Loading queue...</td></tr>
+              ) : pendingExpenses.length === 0 ? (
+                <tr><td colSpan="7" className="py-8 text-center text-[#8695AD]">All caught up! No approvals needed.</td></tr>
+              ) : (
+                pendingExpenses.map((exp) => (
+                  <tr key={exp.id} className="border-b border-[#F1F5F9] hover:bg-[#F8FAFC] transition-colors group">
+                    <td className="py-4 pr-4">
+                      <div className="flex items-center gap-3">
+                         <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-[12px]">
+                           {exp.submittedBy?.name?.[0] || 'U'}
+                         </div>
+                         <span className="text-[14px] font-semibold text-brand-dark">{exp.submittedBy?.name || 'Unknown User'}</span>
+                      </div>
+                    </td>
+                    <td className="py-4 pr-4">
+                      <Link to={`/expenses/${exp.id}`} className="text-[14px] text-brand-dark font-medium max-w-[180px] truncate hover:text-brand-primary block">{exp.description}</Link>
+                    </td>
+                    <td className="py-4 pr-4">
+                      <p className="text-[14px] text-[#64748B] whitespace-pre-wrap">{new Date(exp.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).replace(',', ',\n')}</p>
+                    </td>
+                    <td className="py-4 pr-4">
+                      <CategoryBadge category={exp.category} />
+                    </td>
+                    <td className="py-4 pr-4">
+                      {exp.aiFlag ? <AiBadge flag={exp.aiFlag} severity={exp.aiSeverity} /> : <span className="text-[13px] text-[#059669] font-medium flex items-center gap-1"><Check className="w-3 h-3"/> Clean</span>}
+                    </td>
+                    <td className="py-4 pr-4 text-[14px] font-bold text-brand-dark whitespace-nowrap">
+                      {formatCurrency(exp.convertedAmount || exp.amount, exp.companyCurrency || exp.currency)}
+                    </td>
+                    <td className="py-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                         <button onClick={() => setActionModal({ isOpen: true, type: 'reject', expense: exp })} className="w-8 h-8 rounded-lg flex items-center justify-center border border-[#FEE2E2] text-[#DC2626] hover:bg-[#FEE2E2] transition-colors" title="Reject">
+                           <X className="w-4 h-4" />
+                         </button>
+                         <button onClick={() => setActionModal({ isOpen: true, type: 'approve', expense: exp })} className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#D1FAE5] text-[#059669] hover:bg-[#A7F3D0] transition-colors" title="Approve">
+                           <Check className="w-4 h-4" />
+                         </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* Completed Section */}
+      {/* Audit History Area */}
       {completedExpenses.length > 0 && (
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">History</h2>
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <table className="w-full">
+        <div className="bg-white rounded-[20px] p-8 shadow-[0_8px_30px_rgba(0,0,0,0.02)]">
+          <h2 className="text-[19px] font-bold text-brand-dark tracking-tight mb-8">Approval History</h2>
+          
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-gray-100 bg-gray-50/50">
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Employee</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Amount</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">Category</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Date</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Status</th>
+                <tr className="border-b border-[#F1F5F9]">
+                  <th className="pb-4 text-[11px] font-bold text-brand-label uppercase tracking-wider">Employee</th>
+                  <th className="pb-4 text-[11px] font-bold text-brand-label uppercase tracking-wider">Description</th>
+                  <th className="pb-4 text-[11px] font-bold text-brand-label uppercase tracking-wider">Date Resolved</th>
+                  <th className="pb-4 text-[11px] font-bold text-brand-label uppercase tracking-wider">Amount</th>
+                  <th className="pb-4 text-[11px] font-bold text-brand-label uppercase tracking-wider text-right">Final Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
-                {completedExpenses.map((exp) => (
-                  <tr key={exp.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-4 py-3">
-                      <Link to={`/expenses/${exp.id}`} className="text-sm font-medium text-gray-900 hover:text-indigo-600">{exp.submittedBy?.name}</Link>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{formatCurrency(exp.convertedAmount || exp.amount, exp.companyCurrency)}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500 hidden sm:table-cell">{getCategoryIcon(exp.category)} {exp.category}</td>
-                    <td className="px-4 py-3 text-sm text-gray-400 hidden md:table-cell">{formatDate(exp.date)}</td>
-                    <td className="px-4 py-3"><StatusBadge status={exp.status} /></td>
-                  </tr>
-                ))}
+              <tbody>
+                  {completedExpenses.slice(0, 10).map((exp) => (
+                    <tr key={exp.id} className="border-b border-[#F1F5F9] hover:bg-[#F8FAFC] transition-colors group">
+                      <td className="py-4 pr-4">
+                        <span className="text-[14px] font-semibold text-brand-dark">{exp.submittedBy?.name || 'Unknown User'}</span>
+                      </td>
+                      <td className="py-4 pr-4">
+                        <Link to={`/expenses/${exp.id}`} className="text-[14px] text-brand-dark font-medium max-w-[180px] truncate hover:text-brand-primary block">{exp.description}</Link>
+                      </td>
+                      <td className="py-4 pr-4">
+                        <p className="text-[14px] text-[#64748B]">{new Date(exp.updatedAt || exp.date).toLocaleDateString()}</p>
+                      </td>
+                      <td className="py-4 pr-4 text-[14px] font-bold text-brand-dark whitespace-nowrap">
+                        {formatCurrency(exp.convertedAmount || exp.amount, exp.companyCurrency || exp.currency)}
+                      </td>
+                      <td className="py-4 text-right">
+                        <StatusBadge status={exp.status} />
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>
@@ -162,42 +199,41 @@ export default function ManagerDashboard() {
       )}
 
       {/* Action Modal */}
-      <Modal
-        isOpen={actionModal.isOpen}
-        onClose={() => { setActionModal({ isOpen: false, type: null, expense: null }); setComment(''); }}
-        title={actionModal.type === 'approve' ? 'Approve Expense' : 'Reject Expense'}
-      >
-        <div className="space-y-4">
+      <Modal isOpen={actionModal.isOpen} onClose={() => { setActionModal({ isOpen: false, type: null, expense: null }); setComment(''); }} title={actionModal.type === 'approve' ? 'Approve Expense' : 'Reject Expense'} maxWidth="max-w-md">
+        <form onSubmit={handleAction} className="space-y-5 p-2">
           {actionModal.expense && (
-            <div className="bg-gray-50 rounded-xl p-4">
-              <p className="text-sm text-gray-500">Amount</p>
-              <p className="text-lg font-bold text-gray-900">
-                {formatCurrency(actionModal.expense.convertedAmount || actionModal.expense.amount, actionModal.expense.companyCurrency)}
-              </p>
-              <p className="text-sm text-gray-500 mt-1">{actionModal.expense.description}</p>
+            <div className="bg-brand-bg rounded-xl p-5 border border-transparent flex justify-between items-center shadow-inner mt-2">
+              <div>
+                <p className="text-[13px] text-brand-label font-bold uppercase tracking-wider mb-1">Total Amount</p>
+                <p className="text-[20px] font-bold text-brand-dark">
+                  {formatCurrency(actionModal.expense.convertedAmount || actionModal.expense.amount, actionModal.expense.companyCurrency)}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-[13px] text-brand-label font-bold uppercase tracking-wider mb-1">Employee</p>
+                <p className="text-[15px] font-bold text-brand-dark">{actionModal.expense.submittedBy?.name}</p>
+              </div>
             </div>
           )}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Comment {actionModal.type === 'reject' && <span className="text-red-500">*</span>}
+          
+          <div className="mt-4">
+            <label className="block text-[11px] font-bold text-brand-label uppercase tracking-wider mb-2">
+              Comment {actionModal.type === 'reject' && <span className="text-[#DC2626]">*</span>}
             </label>
-            <textarea value={comment} onChange={(e) => setComment(e.target.value)}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm resize-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-              rows={3} placeholder={actionModal.type === 'reject' ? 'Reason for rejection (required)...' : 'Optional comment...'} />
+            <textarea value={comment} onChange={(e) => setComment(e.target.value)} required={actionModal.type === 'reject'}
+              className="w-full px-4 py-3.5 bg-brand-input rounded-xl text-[14px] text-brand-dark focus:bg-white focus:ring-4 focus:ring-brand-primary/10 transition-all border border-transparent focus:border-brand-primary resize-none"
+              rows={3} placeholder={actionModal.type === 'reject' ? 'Reason for rejection...' : 'Optional comment...'} />
           </div>
-          <div className="flex gap-3">
-            <button onClick={() => { setActionModal({ isOpen: false, type: null, expense: null }); setComment(''); }}
-              className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+
+          <div className="flex gap-4 pt-4 justify-end">
+            <button type="button" onClick={() => { setActionModal({ isOpen: false, type: null, expense: null }); setComment(''); }} className="px-6 py-3 border border-[#E2E8F0] rounded-xl text-[14px] font-bold text-[#64748B] hover:bg-[#F8FAFC] transition-colors">
               Cancel
             </button>
-            <button onClick={handleAction} disabled={processing}
-              className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-white transition-colors disabled:opacity-50 flex items-center justify-center ${
-                actionModal.type === 'approve' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'
-              }`}>
-              {processing ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : actionModal.type === 'approve' ? 'Approve' : 'Reject'}
+            <button type="submit" disabled={processing} className={`${actionModal.type === 'approve' ? 'bg-[#059669] hover:bg-[#047857]' : 'bg-[#DC2626] hover:bg-[#B91C1C]'} text-white px-8 py-3 rounded-xl text-[14px] font-bold transition-colors disabled:opacity-50 flex items-center justify-center gap-2`}>
+              {processing ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : actionModal.type === 'approve' ? 'Approve Now' : 'Reject Expense'}
             </button>
           </div>
-        </div>
+        </form>
       </Modal>
     </div>
   );

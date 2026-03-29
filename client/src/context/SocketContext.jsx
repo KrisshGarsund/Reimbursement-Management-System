@@ -14,13 +14,36 @@ export function SocketProvider({ children }) {
     if (!user) return;
 
     const newSocket = io('/', {
-      query: { userId: user.id },
+      auth: { userId: user.id },
       transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: 5,
     });
 
+    // Success handler
+    newSocket.on('connect', () => {
+      console.log('Socket connected:', newSocket.id);
+    });
+
+    // Notification handler
     newSocket.on('notification', (notification) => {
       setNotifications((prev) => [notification, ...prev]);
       setUnreadCount((prev) => prev + 1);
+    });
+
+    // Error handlers
+    newSocket.on('connect_error', (error) => {
+      console.error('Socket connection error:', error);
+    });
+
+    newSocket.on('error', (error) => {
+      console.error('Socket error:', error);
+    });
+
+    newSocket.on('disconnect', (reason) => {
+      console.warn('Socket disconnected:', reason);
     });
 
     setSocket(newSocket);

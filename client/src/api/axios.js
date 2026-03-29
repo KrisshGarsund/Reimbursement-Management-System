@@ -37,12 +37,21 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (refreshError) {
         accessToken = null;
+        console.error('Token refresh failed:', refreshError);
         if (window.location.pathname !== '/login' && window.location.pathname !== '/signup') {
           window.location.href = '/login';
         }
         return Promise.reject(refreshError);
       }
     }
+
+    // Enhanced error logging
+    const errorMessage = error.response?.data?.message || error.message || 'An error occurred';
+    console.error('API Error:', {
+      status: error.response?.status,
+      message: errorMessage,
+      url: originalRequest?.url,
+    });
 
     return Promise.reject(error);
   }

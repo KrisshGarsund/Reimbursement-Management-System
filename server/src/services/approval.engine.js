@@ -7,6 +7,13 @@ export async function initiateApproval(expense) {
     include: { manager: true },
   });
 
+  // If the submitter is a MANAGER or ADMIN, skip the manager-approval step
+  // and send directly to approval rules (admin must approve)
+  if (submitter.role === 'MANAGER' || submitter.role === 'ADMIN') {
+    await advanceToNextStep(expense.id, expense.companyId, 0);
+    return;
+  }
+
   // Step 0: Check if employee has a manager with isManagerApprover=true
   if (submitter.manager && submitter.manager.isManagerApprover) {
     await prisma.expense.update({
@@ -99,110 +106,91 @@ export async function processApproval(expenseId, approverId, action, comment) {
     return { status: 'REJECTED' };
   }
 
-  // APPROVED — check approval rules for this step
+  // APPROVED — check approval rules for THIS step
   const currentStep = expense.currentApproverStep;
-  const rules = await prisma.approvalRule.findMany({
-    where: {
-      companyId: expense.companyId,
-      stepOrder: currentStep + 1,
-    },
-    orderBy: { stepOrder: 'asc' },
-  });
+  let shouldAdvance = false;
+  let skipToFinal = false;
 
-  if (rules.length > 0) {
-    // Check rule type for current step rules
-    const rule = rules[0];
-    const shouldAdvance = await evaluateRule(rule, expenseId, currentStep + 1);
-
-    if (shouldAdvance) {
-      await advanceToNextStep(expenseId, expense.companyId, currentStep + 1);
-    } else {
-      // Update step
-      await prisma.expense.update({
-        where: { id: expenseId },
-        data: { currentApproverStep: currentStep + 1, status: 'IN_REVIEW' },
-      });
-    }
+  if (currentStep === 0) {
+    // Initial manager approval always advances to Step 1
+    shouldAdvance = true;
   } else {
-    // No more rules → approve
+    // Admin defined rules
+    const rules = await prisma.approvalRule.findMany({
+      where: {
+        companyId: expense.companyId,
+        stepOrder: currentStep,
+      },
+      orderBy: { stepOrder: 'asc' },
+    });
+
+    if (rules.length > 0) {
+      const rule = rules[0];
+      const totalAtStep = await prisma.approvalRule.count({
+        where: { companyId: rule.companyId, stepOrder: currentStep },
+      });
+      const approvedCount = await prisma.approvalLog.count({
+        where: { expenseId, stepOrder: currentStep, action: 'APPROVED' },
+      });
+      // The current approval isn't in DB if we didn't wait? 
+      // Wait, we ALREADY created the ApprovalLog for this action earlier in this function! 
+      // So approvedCount includes the current approver.
+
+      const isSpecificApprover = rules.some(r => r.specificApproverId === approverId);
+
+      switch (rule.ruleType) {
+        case 'SEQUENTIAL':
+          shouldAdvance = true;
+          break;
+        case 'PERCENTAGE': {
+          const percentage = (approvedCount / totalAtStep) * 100;
+          if (percentage >= (rule.percentageThreshold || 100)) {
+            shouldAdvance = true;
+          }
+          break;
+        }
+        case 'SPECIFIC_APPROVER':
+          if (isSpecificApprover) skipToFinal = true;
+          break;
+        case 'HYBRID': {
+          const percentage = (approvedCount / totalAtStep) * 100;
+          if (isSpecificApprover) {
+            skipToFinal = true;
+          } else if (percentage >= (rule.percentageThreshold || 100)) {
+            shouldAdvance = true;
+          }
+          break;
+        }
+      }
+    } else {
+      shouldAdvance = true; // Defensive fallback
+    }
+  }
+
+  if (skipToFinal) {
     await finalizeApproval(expenseId, approverId, approver.role, expense);
+  } else if (shouldAdvance) {
+    await advanceToNextStep(expenseId, expense.companyId, currentStep + 1, approverId, approver.role, expense);
+  } else {
+    // Need more approvers at this step, just stay IN_REVIEW
+    await prisma.expense.update({
+      where: { id: expenseId },
+      data: { status: 'IN_REVIEW' },
+    });
   }
 
   return { status: 'ADVANCED' };
 }
 
-async function evaluateRule(rule, expenseId, stepOrder) {
-  switch (rule.ruleType) {
-    case 'SEQUENTIAL':
-      return false; // must wait for this approver
-
-    case 'PERCENTAGE': {
-      const totalApprovers = await prisma.approvalRule.count({
-        where: { companyId: rule.companyId, stepOrder },
-      });
-      const approvedCount = await prisma.approvalLog.count({
-        where: { expenseId, stepOrder, action: 'APPROVED' },
-      });
-      const percentage = ((approvedCount + 1) / totalApprovers) * 100;
-      return percentage >= (rule.percentageThreshold || 100);
-    }
-
-    case 'SPECIFIC_APPROVER':
-      return false; // handled by checking approver identity
-
-    case 'HYBRID': {
-      // Check percentage OR specific approver
-      const totalHybrid = await prisma.approvalRule.count({
-        where: { companyId: rule.companyId, stepOrder },
-      });
-      const approvedHybrid = await prisma.approvalLog.count({
-        where: { expenseId, stepOrder, action: 'APPROVED' },
-      });
-      const pct = ((approvedHybrid + 1) / totalHybrid) * 100;
-      return pct >= (rule.percentageThreshold || 100);
-    }
-
-    default:
-      return false;
-  }
-}
-
-async function advanceToNextStep(expenseId, companyId, nextStep) {
+async function advanceToNextStep(expenseId, companyId, nextStep, approverId, approverRole, expense) {
   const nextRules = await prisma.approvalRule.findMany({
     where: { companyId, stepOrder: nextStep },
     include: { approver: true },
   });
 
   if (nextRules.length === 0) {
-    // No more steps → auto-approve
-    const expense = await prisma.expense.findUnique({
-      where: { id: expenseId },
-      include: { submittedBy: true },
-    });
-    // Use system-level approval
-    await prisma.expense.update({
-      where: { id: expenseId },
-      data: { status: 'APPROVED', currentApproverStep: nextStep },
-    });
-
-    if (expense) {
-      await prisma.auditLog.create({
-        data: {
-          expenseId,
-          actorId: expense.submittedById,
-          actorRole: expense.submittedBy.role,
-          action: 'STATUS_CHANGED',
-          comment: 'Expense auto-approved (no approval rules configured)',
-          metadata: JSON.stringify({ newStatus: 'APPROVED' }),
-        },
-      });
-
-      await createNotification(
-        expense.submittedById,
-        expenseId,
-        `Your expense (${expense.category} — ${expense.amount} ${expense.currency}) has been approved! 🎉`
-      );
-    }
+    // No more approval steps defined → finalize the approval
+    await finalizeApproval(expenseId, approverId, approverRole, expense);
     return;
   }
 

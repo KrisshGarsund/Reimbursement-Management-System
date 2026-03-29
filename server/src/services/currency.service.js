@@ -20,8 +20,9 @@ export async function getRates(baseCurrency) {
     cacheTimestamp = now;
     return data.rates;
   } catch (error) {
-    console.error('Exchange rate API error:', error.message);
-    // Return fallback 1:1 if API fails
+    console.error('❌ Exchange rate API error:', error.message);
+    console.warn(`⚠️  Using fallback 1:1 exchange rate for ${baseCurrency}. Currency conversion may be inaccurate.`);
+    // Return fallback 1:1 if API fails - THIS IS A FALLBACK AND MAY CAUSE FINANCIAL INACCURACY
     return { [cacheKey]: 1 };
   }
 }
@@ -33,8 +34,9 @@ export async function convert(amount, fromCurrency, toCurrency) {
   const rate = rates[toCurrency.toUpperCase()];
 
   if (!rate) {
-    console.error(`No rate found for ${toCurrency}`);
-    return amount; // fallback
+    console.error(`❌ No rate found for ${toCurrency} from ${fromCurrency}`);
+    console.warn(`⚠️  Using 1:1 fallback. Currency conversion will be inaccurate.`);
+    return amount; // fallback - THIS IS NOT ACCURATE
   }
 
   return Math.round(amount * rate * 100) / 100;

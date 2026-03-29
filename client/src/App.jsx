@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
+import ErrorBoundary from './components/ErrorBoundary.jsx';
 import Layout from './components/layout/Layout.jsx';
 import Login from './pages/Login.jsx';
 import Signup from './pages/Signup.jsx';
@@ -45,8 +46,9 @@ function PublicRoute({ children }) {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <Routes>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <Routes>
         {/* Public routes */}
         <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
         <Route path="/signup" element={<PublicRoute><Signup /></PublicRoute>} />
@@ -55,6 +57,7 @@ export default function App() {
         <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
           {/* Employee routes */}
           <Route path="/expenses" element={<EmployeeDashboard />} />
+          <Route path="/expenses/new" element={<Navigate to="/expenses" replace />} />
           <Route path="/expenses/:id" element={<ExpenseDetailPage />} />
 
           {/* Manager routes */}
@@ -70,6 +73,7 @@ export default function App() {
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
-    </BrowserRouter>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }

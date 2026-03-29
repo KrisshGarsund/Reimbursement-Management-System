@@ -56,14 +56,27 @@ export async function listExpenses({ companyId, userId, role, status, category, 
   if (role === 'EMPLOYEE') {
     where.submittedById = userId;
   } else if (role === 'MANAGER') {
-    // Manager sees team expenses + their own
+    // Manager sees team expenses + their own + expenses assigned to them via rules
     const team = await prisma.user.findMany({
       where: { managerId: userId },
       select: { id: true },
     });
     const teamIds = team.map(u => u.id);
     teamIds.push(userId);
-    where.submittedById = { in: teamIds };
+
+    const activeRules = await prisma.approvalRule.findMany({
+      where: { companyId, OR: [{ approverId: userId }, { specificApproverId: userId }] }
+    });
+    
+    const ruleConditions = activeRules.map(r => ({
+      status: 'IN_REVIEW',
+      currentApproverStep: r.stepOrder
+    }));
+
+    where.OR = [
+      { submittedById: { in: teamIds } },
+      ...(ruleConditions.length > 0 ? ruleConditions : [])
+    ];
   }
   // ADMIN sees all company expenses
 

@@ -93,7 +93,7 @@ Return ONLY this JSON:
 }`;
 
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5-20250514',
+      model: 'claude-3-5-sonnet-latest',
       max_tokens: 300,
       messages: [{ role: 'user', content: prompt }],
     });

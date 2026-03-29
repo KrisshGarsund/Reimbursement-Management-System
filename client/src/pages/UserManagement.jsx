@@ -176,14 +176,27 @@ export default function UserManagement() {
             </>
           )}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-            <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white">
-              <option value="EMPLOYEE">Employee</option>
-              <option value="MANAGER">Manager</option>
-            </select>
-          </div>
-          {editing && (
+              <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+              <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white">
+                <option value="EMPLOYEE">Employee</option>
+                <option value="MANAGER">Manager</option>
+              </select>
+            </div>
+            {form.role === 'MANAGER' && (
+              <div className="flex items-center gap-2 mt-2 bg-gray-50 p-3 rounded-xl border border-gray-100">
+                <input
+                  type="checkbox"
+                  id="isApprover"
+                  checked={form.isManagerApprover || false}
+                  onChange={(e) => setForm({ ...form, isManagerApprover: e.target.checked })}
+                  className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                />
+                <label htmlFor="isApprover" className="text-sm font-medium text-gray-700">
+                  Manager is an Approver <span className="text-xs text-gray-500 font-normal">(Expense requires their initial approval)</span>
+                </label>
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Manager</label>
               <select value={form.managerId || ''} onChange={(e) => setForm({ ...form, managerId: e.target.value })}
@@ -194,17 +207,16 @@ export default function UserManagement() {
                 ))}
               </select>
             </div>
-          )}
-          <div className="flex gap-3 pt-2">
-            <button type="button" onClick={() => { setShowModal(false); setEditing(null); }}
-              className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">Cancel</button>
-            <button type="submit" disabled={saving}
-              className="flex-1 bg-indigo-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center justify-center">
-              {saving ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : editing ? 'Update' : 'Create'}
-            </button>
-          </div>
-        </form>
-      </Modal>
-    </div>
-  );
-}
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={() => { setShowModal(false); setEditing(null); }}
+                className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">Cancel</button>
+              <button type="submit" disabled={saving}
+                className="flex-1 bg-indigo-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center justify-center">
+                {saving ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : editing ? 'Update' : 'Create'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      </div>
+    );
+  }

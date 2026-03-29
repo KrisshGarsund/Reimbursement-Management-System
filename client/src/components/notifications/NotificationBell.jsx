@@ -16,7 +16,9 @@ export default function NotificationBell() {
       try {
         const { data } = await api.get('/notifications');
         updateNotifications(data.data.notifications, data.data.unreadCount);
-      } catch {}
+      } catch (error) {
+        console.error('Failed to fetch notifications:', error);
+      }
     }
     fetchNotifications();
   }, [updateNotifications]);
@@ -36,7 +38,9 @@ export default function NotificationBell() {
       try {
         await api.patch(`/notifications/${notification.id}/read`);
         decrementUnread();
-      } catch {}
+      } catch (error) {
+        console.error('Failed to mark notification as read:', error);
+      }
     }
     if (notification.expenseId) {
       navigate(`/expenses/${notification.expenseId}`);
